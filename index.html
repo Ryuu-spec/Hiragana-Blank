@@ -263,17 +263,21 @@
                 position: static;
             }
         }
-                justify-content: center;
-            }
 
-            .timer {
-                margin-left: 0;
-                margin-right: 20px;
-                text-align: center;
-            }
+        .confetti {
+            position: fixed;
+            width: 12px;
+            height: 12px;
+            top: -10px;
+            z-index: 9999;
+            pointer-events: none;
+            border-radius: 2px;
+        }
 
-            .title {
-                font-size: 28px;
+        @keyframes confetti-fall {
+            to {
+                transform: translateY(100vh) rotate(720deg);
+                opacity: 0;
             }
         }
     </style>
@@ -282,8 +286,8 @@
     <div class="container">
         <div class="header">
             <div class="header-center">
-                <div class="title">히라가나 오십음도표 빈칸 채우기</div>
-                <button class="reset-btn" onclick="resetGame()" title="Reset Game">
+                <h1 class="title">히라가나 오십음도표 빈칸 채우기</h1>
+                <button class="reset-btn" onclick="resetGame()">
                     <svg viewBox="0 0 24 24">
                         <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
                     </svg>
@@ -304,6 +308,90 @@
     </div>
 
     <script>
+        // 사운드 생성 함수들 (Ka.html에서 가져옴)
+        function playCorrectSound() {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.value = 523.25; // C5
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.2);
+        }
+
+        function playIncorrectSound() {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.value = 200; // Lower tone
+            oscillator.type = 'sawtooth';
+            
+            gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.15);
+        }
+
+        function playCelebrationSound() {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const notes = [523.25, 659.25, 783.99, 1046.50]; // C, E, G, C
+            
+            notes.forEach((freq, index) => {
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = freq;
+                oscillator.type = 'sine';
+                
+                const startTime = audioContext.currentTime + (index * 0.15);
+                gainNode.gain.setValueAtTime(0.3, startTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.4);
+                
+                oscillator.start(startTime);
+                oscillator.stop(startTime + 0.4);
+            });
+        }
+
+        function createConfetti() {
+            const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#a29bfe', '#fd79a8'];
+            const confettiCount = 100;
+            const shapes = ['●', '■', '★'];
+
+            for (let i = 0; i < confettiCount; i++) {
+                const confetti = document.createElement('div');
+                confetti.className = 'confetti';
+                confetti.textContent = shapes[Math.floor(Math.random() * shapes.length)];
+                confetti.style.left = Math.random() * 100 + 'vw';
+                confetti.style.color = colors[Math.floor(Math.random() * colors.length)];
+                confetti.style.fontSize = (Math.random() * 15 + 12) + 'px';
+                confetti.style.animationDuration = (Math.random() * 3 + 2) + 's';
+                confetti.style.animationDelay = (Math.random() * 0.5) + 's';
+                confetti.style.animation = 'confetti-fall linear forwards';
+                
+                document.body.appendChild(confetti);
+
+                setTimeout(() => {
+                    confetti.remove();
+                }, 6000);
+            }
+        }
+
         // 히라가나 50음도 전체 구조
         const fullHiraganaTable = [
             ['あ', 'い', 'う', 'え', 'お'],           // あ행
@@ -481,7 +569,8 @@
 
             // 정답 확인
             if (answerMap[key] === selectedChar.char) {
-                // 정답!
+                // 정답! - 매칭 성공 사운드 재생
+                playCorrectSound();
                 selectedCell.textContent = selectedChar.char;
                 selectedCell.classList.remove('empty', 'selected');
                 selectedCell.classList.add('matched');
@@ -496,7 +585,8 @@
                 // 완성 체크
                 checkComplete();
             } else {
-                // 오답 - 흔들기 애니메이션
+                // 오답 - 실패 사운드 재생 및 흔들기 애니메이션
+                playIncorrectSound();
                 selectedCell.classList.add('shake');
                 selectedChar.tile.classList.add('shake');
 
@@ -513,7 +603,9 @@
             const emptyCells = document.querySelectorAll('.cell.empty');
             if (emptyCells.length === 0) {
                 stopTimer();
-                // 완성되면 타이머만 멈춤
+                // 모두 성공했을 때 축하 사운드 및 색종이 효과
+                playCelebrationSound();
+                createConfetti();
             }
         }
 
